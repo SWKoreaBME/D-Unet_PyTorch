@@ -3,18 +3,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Expand(nn.Module):
-    def __init__(self, x):
+    def __init__(self):
         super(Expand, self).__init__()
 
     def forward(self, x):
-        return x.unsqueeze(0)
+        return torch.unsqueeze(x, dim=0)
 
 class Squeeze(nn.Module):
-    def __init__(self, x):
+    def __init__(self):
         super(Squeeze, self).__init__()
 
     def forward(self, x):
-        return x.squeeze(0)
+        return torch.squeeze(x, dim=1)
 
 class SE_block(nn.Module):
     """[summary]
@@ -28,19 +28,20 @@ class SE_block(nn.Module):
 
     def dense_block(self, in_channels, out_channels):
         return nn.Sequential(
-            nn.Linear(in_channels, out_channels, bias=False),
+            nn.Linear(in_channels, in_channels // self.ratio, bias=False),
             nn.ReLU(),
-            nn.Linear(out_channels, out_channels, bias=False),
+            nn.Linear(in_channels // self.ratio, out_channels, bias=False),
             nn.Sigmoid(),
         )
         
     def forward(self, x):
-        filters = x.size(0)
-        reshape_size = (1, 1, filters)
+        filters = x.size(1) # 64
+        reshape_size = (x.size(0), 1, 1, filters)
         se = F.adaptive_avg_pool2d(x, (1, 1))
         se = torch.reshape(se, reshape_size)
-        se = self.dense_block(in_channels=filters // self.ratio, out_channels=filters)(se)
-        return torch.mul(x, se)
+        se = self.dense_block(in_channels=filters, out_channels=filters)(se)
+        se = se.permute(0, 3, 1, 2)
+        return x * se
 
 class BN_block2d(nn.Module):
     """
@@ -69,10 +70,10 @@ class BN_block3d(nn.Module):
         super(BN_block3d, self).__init__()
         self.bn_block = nn.Sequential(
             nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm3d(out_channels)
+            nn.BatchNorm3d(out_channels),
             nn.ReLU(),
-            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm3d(out_channels)
+            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
+            nn.BatchNorm3d(out_channels),
             nn.ReLU()
         )
 
@@ -85,25 +86,31 @@ class D_SE_Add(nn.Module):
     """
     def __init__(self, in_channels, out_channels):
         super(D_SE_Add, self).__init__()
-        self.squeeze_block = nn.Sequential(
-            nn.Conv3d(in_channels, out_channels, kernel_size=1, padding=1),
-            Squeeze(),
-            nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+
+        self.squeeze_block_3d = nn.Sequential(
+            nn.Conv3d(in_channels, 1, kernel_size=1, padding=0),
+            Squeeze()
+        )
+
+    def squeeze_block_2d(self, in_channels, out_channels):
+        return nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
             nn.ReLU(),
-            SE_block(ratio)
+            SE_block()
         )
         
     def forward(self, in_3d, in_2d):
-        in_3d = squeeze_block(in_3d)
-        in_2d = SE_block(in_2d)
+        in_3d = self.squeeze_block_3d(self.in_channels)(in_3d)
+        in_3d = self.squeeze_block_2d(in_3d.size(1), self.out_channels)(in_3d)
+        in_2d = SE_block()(in_2d)
         return in_3d + in_2d
 
-class Upsample2d(nn.Module):
-    """
-        Upsampling 2d
-    """
-    def __init__(self, in_channels, out_channels):
-        super(Upsample2d, self).__init__()
-        
-    def forward(self, x):
-        return F.interpolate(x, scale_factor=())
+def up_block(self, in_channels, out_channels):
+    return nn.Sequential(
+        nn.Upsample(scale_factor=2, mode='nearest'),
+        nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
+        nn.ReLU()
+    )
