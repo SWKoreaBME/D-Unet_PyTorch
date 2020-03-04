@@ -32,7 +32,6 @@ class DUnet(nn.Module):
 
     def forward(self, x):
         in_channels = x.size(0)
-
         input3d = Expand(x) # x.size = 4 * 192 * 192
 
         # 3d Stream
@@ -65,7 +64,7 @@ class DUnet(nn.Module):
         conv5 = BN_block2d(in_channels * 64, in_channels * 128)(pool4)
         conv5 = nn.Dropout(0.3)(conv5)
 
-        #TODO :  Decoding ( keras -> PyTorch)
+        # Decoding
 
         up6 = self.up_block(in_channels * 128, in_channels * 64)(conv5)
         merge6 = torch.cat(conv4, up6)
