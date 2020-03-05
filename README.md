@@ -1,7 +1,7 @@
 # D-Unet: a dimension-fusion U shape network for chronic stroke lesion segmentation
 ####  D-Unet implemented in PyTorch
 
-<img src="./fig1.png" alt="image-20200305123032871"  />
+<img src="./fig1.png"/>
 
 
 
@@ -28,3 +28,4 @@ output_batch = model(input_batch) # output_batch size : (BATCH_SIZE, 1, 192, 192
 [1] Yongjin Zhou et al., D-UNet: a dimension-fusion U shape network for chronic stroke lesion segmentation ([ arXiv:1908.05104](https://arxiv.org/abs/1908.05104) [eess.IV] ), 2019 Aug
 
 [2] SZUHvern github source code implemented with keras (https://github.com/SZUHvern/D-UNet)
+
