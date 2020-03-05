@@ -25,8 +25,6 @@ class SE_block(nn.Module):
     def __init__(self, in_channels, ratio=16):
         super().__init__()
         self.avg_2d = F.adaptive_avg_pool2d
-        
-        self.filters = x.size(1)
         self.dense_block = nn.Sequential(
             nn.Linear(in_channels, in_channels // ratio, bias=False),
             nn.ReLU(),
