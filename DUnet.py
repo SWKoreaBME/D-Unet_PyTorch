@@ -11,76 +11,105 @@ from DUnet_parts import *
 
 class DUnet(nn.Module):
     def __init__(self, in_channels):
-        super(DUnet, self).__init__()
+        super().__init__()
 
         self.in_channels = in_channels
-        self.BN_block3d = BN_block3d
-        self.BN_block2d = BN_block2d
-        self.D_SE_Add = D_SE_Add
-        self.MaxPool3d = nn.MaxPool3d
-        self.MaxPool2d = nn.MaxPool2d
-        self.Dropout = nn.Dropout
+        in_channels_3d = 1
+        
         self.Expand = Expand
-        self.Conv2d = nn.Conv2d
-        self.Sigmoid = nn.Sigmoid
+        self.MaxPool3d = nn.MaxPool3d(kernel_size=2)
+        self.MaxPool2d = nn.MaxPool2d(kernel_size=2)
+        self.Dropout = nn.Dropout(0.3)
+        
+        # 3d down
+        self.bn_3d_1 = BN_block3d(in_channels_3d, in_channels_3d * 32)
+        self.bn_3d_2 = BN_block3d(in_channels_3d * 32, in_channels_3d * 64)
+        self.bn_3d_3 = BN_block3d(in_channels_3d * 64, in_channels_3d * 128)
+        
+        # 2d down
+        
+        self.bn_2d_1 = BN_block2d(in_channels, in_channels * 8)
+
+        self.bn_2d_2 = BN_block2d(in_channels * 8, in_channels * 16)
+        self.se_add_2 = D_SE_Add(in_channels * 16, in_channels * 16, 2)
+        
+        self.bn_2d_3 = BN_block2d(in_channels * 16, in_channels * 32)
+        self.se_add_3 = D_SE_Add(in_channels * 32, in_channels * 32, 1)
+        
+        self.bn_2d_4 = BN_block2d(in_channels * 32, in_channels * 64)
+        self.bn_2d_5 = BN_block2d(in_channels * 64, in_channels * 128)
+        
+        # up
+        
+        self.up_block_1 = up_block(in_channels * 128, in_channels * 64)
+        self.bn_2d_6 = BN_block2d(in_channels * 64, in_channels * 64)
+        
+        self.up_block_2 = up_block(in_channels * 64, in_channels * 32)
+        self.bn_2d_7 = BN_block2d(in_channels * 32, in_channels * 32)
+        
+        self.up_block_3 = up_block(in_channels * 32, in_channels * 16)
+        self.bn_2d_8 = BN_block2d(in_channels * 16, in_channels * 16)
+        
+        self.up_block_4 = up_block(in_channels * 16, in_channels * 8)
+        self.bn_2d_9 = BN_block2d(in_channels * 8, in_channels * 8)
+        
+        self.conv_10 = nn.Sequential(
+            nn.Conv2d(in_channels * 8, 1, kernel_size=1, padding=0),
+            nn.Sigmoid()
+        )
 
     def forward(self, x):
         input3d = self.Expand()(x) # 1, batch_size, 4, 192, 192
-        input3d = input3d.permute(1, 0, 2, 3, 4) # batch, 1, 4, 192, 192
-
-        in_channels = input3d.size(1)
-
-        print(input3d.size())
+        input3d = input3d.permute(1, 0, 2, 3, 4) # batch_size, 1, 4, 192, 192
 
         # 3d Stream
-        conv3d1 = self.BN_block3d(in_channels, in_channels * 32)(input3d)
-        pool3d1 = self.MaxPool3d(kernel_size=2)(conv3d1)
+        conv3d1 = self.bn_3d_1(input3d)
+        pool3d1 = self.MaxPool3d(conv3d1)
 
-        conv3d2 = self.BN_block3d(in_channels * 32, in_channels * 64)(pool3d1)
-        pool3d2 = self.MaxPool3d(kernel_size=2)(conv3d2)
+        conv3d2 = self.bn_3d_2(pool3d1)
+        pool3d2 = self.MaxPool3d(conv3d2)
 
-        conv3d3 = self.BN_block3d(in_channels * 64, in_channels * 128)(pool3d2)
+        conv3d3 = self.bn_3d_3(pool3d2)
         
         # 2d Encoding
         in_channels = self.in_channels
 
-        conv1 = self.BN_block2d(in_channels, in_channels * 8)(x)
-        pool1 = self.MaxPool2d(kernel_size=2)(conv1)
+        conv1 = self.bn_2d_1(x)
+        pool1 = self.MaxPool2d(conv1)
 
-        conv2 = self.BN_block2d(in_channels * 8, in_channels * 16)(pool1)
-        conv2 = self.D_SE_Add(in_channels * 16, in_channels * 16)(conv3d2, conv2)
-        pool2 = self.MaxPool2d(kernel_size=2)(conv2)
+        conv2 = self.bn_2d_2(pool1)
+        conv2 = self.se_add_2(conv3d2, conv2)
+        pool2 = self.MaxPool2d(conv2)
 
-        conv3 = self.BN_block2d(in_channels * 16, in_channels * 32)(pool2)
-        conv3 = self.D_SE_Add(in_channels * 32, in_channels * 32)(conv3d3, conv3)
-        pool3 = self.MaxPool2d(kernel_size=2)(conv3)
+        conv3 = self.bn_2d_3(pool2)
+        conv3 = self.se_add_3(conv3d3, conv3)
+        pool3 = self.MaxPool2d(conv3)
 
-        conv4 = self.BN_block2d(in_channels * 32, in_channels * 64)(pool3)
-        conv4 = self.Dropout(0.3)(conv4)
-        pool4 = self.MaxPool2d(kernel_size=2)(conv4)
+        conv4 = self.bn_2d_4(pool3)
+        conv4 = self.Dropout(conv4)
+        pool4 = self.MaxPool2d(conv4)
 
-        conv5 = self.BN_block2d(in_channels * 64, in_channels * 128)(pool4)
-        conv5 = self.Dropout(0.3)(conv5)
+        conv5 = self.bn_2d_5(pool4)
+        conv5 = self.Dropout(conv5)
 
         # Decoding
 
-        up6 = self.up_block(in_channels * 128, in_channels * 64)(conv5)
+        up6 = self.up_block_1(conv5)
         merge6 = conv4 + up6
-        conv6 = self.BN_block2d(in_channels * 64, in_channels * 64)(merge6)
+        conv6 = self.bn_2d_6(merge6)
 
-        up7 = self.up_block(in_channels * 64, in_channels * 32)(conv6)
+        up7 = self.up_block_2(conv6)
         merge7 = conv3 + up7
-        conv7 = self.BN_block2d(in_channels * 32, in_channels * 32)(merge7)
+        conv7 = self.bn_2d_7(merge7)
 
-        up8 = self.up_block(in_channels * 32, in_channels * 16)(conv7)
+        up8 = self.up_block_3(conv7)
         merge8 = conv2 + up8
-        conv8 = self.BN_block2d(in_channels * 16, in_channels * 16)(merge8)
+        conv8 = self.bn_2d_8(merge8)
 
-        up9 = self.up_block(in_channels * 16, in_channels * 8)(conv8)
+        up9 = self.up_block_4(conv8)
         merge9 = conv1 + up9
-        conv9 = self.BN_block2d(in_channels * 8, in_channels * 8)(merge9)
-
-        conv10 = self.Conv2d(in_channels * 8, 1, kernel_size=1, padding=0)(conv9)
-        conv10 = self.Sigmoid()(conv10)
+        conv9 = self.bn_2d_9(merge9)
+        
+        conv10 = self.conv_10(conv9)
 
         return conv10
