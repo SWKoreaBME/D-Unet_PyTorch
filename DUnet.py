@@ -9,8 +9,16 @@ import torch.nn.functional as F
 
 from DUnet_parts import *
 
+def weights_init_he(m):
+    if isinstance(m, nn.Conv2d):
+        torch.nn.init.kaiming_uniform_(m.weight)
+        torch.nn.init.zeros_(m.bias)
+    if isinstance(m, nn.Conv3d):
+        torch.nn.init.kaiming_uniform_(m.weight)
+        torch.nn.init.zeros_(m.bias)
+
 class DUnet(nn.Module):
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, weights_init = True):
         super().__init__()
 
         self.in_channels = in_channels
@@ -58,6 +66,10 @@ class DUnet(nn.Module):
             nn.Conv2d(in_channels * 8, 1, kernel_size=1, padding=0),
             nn.Sigmoid()
         )
+
+        # He initialization stated in the original paper
+        if weights_init:
+            self.apply(weights_init_he)
 
     def forward(self, x):
         input3d = self.Expand()(x) # 1, batch_size, 4, 192, 192
@@ -116,9 +128,11 @@ class DUnet(nn.Module):
         return conv10
 
 if __name__ == "__main__":
+
     model = DUnet(in_channels=4)
+
     BATCH_SIZE = 1
     input_batch = torch.Tensor(BATCH_SIZE, 4, 192, 192)
     output_batch = model(input_batch)
 
-    print(output_batch.size())
+    print(output_batch.size()) # BATCH_SIZE, 1, 192, 192
