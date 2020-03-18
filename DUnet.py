@@ -37,21 +37,22 @@ class DUnet(nn.Module):
         self.se_add_3 = D_SE_Add(in_channels * 32, in_channels * 32, 1)
         
         self.bn_2d_4 = BN_block2d(in_channels * 32, in_channels * 64)
+
         self.bn_2d_5 = BN_block2d(in_channels * 64, in_channels * 128)
         
         # up
-        
+
         self.up_block_1 = up_block(in_channels * 128, in_channels * 64)
-        self.bn_2d_6 = BN_block2d(in_channels * 64, in_channels * 64)
+        self.bn_2d_6 = BN_block2d(in_channels * 128, in_channels * 64)
         
         self.up_block_2 = up_block(in_channels * 64, in_channels * 32)
-        self.bn_2d_7 = BN_block2d(in_channels * 32, in_channels * 32)
+        self.bn_2d_7 = BN_block2d(in_channels * 64, in_channels * 32)
         
         self.up_block_3 = up_block(in_channels * 32, in_channels * 16)
-        self.bn_2d_8 = BN_block2d(in_channels * 16, in_channels * 16)
+        self.bn_2d_8 = BN_block2d(in_channels * 32, in_channels * 16)
         
         self.up_block_4 = up_block(in_channels * 16, in_channels * 8)
-        self.bn_2d_9 = BN_block2d(in_channels * 8, in_channels * 8)
+        self.bn_2d_9 = BN_block2d(in_channels * 16, in_channels * 8)
         
         self.conv_10 = nn.Sequential(
             nn.Conv2d(in_channels * 8, 1, kernel_size=1, padding=0),
@@ -95,21 +96,29 @@ class DUnet(nn.Module):
         # Decoding
 
         up6 = self.up_block_1(conv5)
-        merge6 = conv4 + up6
+        merge6 = torch.cat(([conv4, up6]), 1)
         conv6 = self.bn_2d_6(merge6)
 
         up7 = self.up_block_2(conv6)
-        merge7 = conv3 + up7
+        merge7 = torch.cat(([conv3, up7]), 1)
         conv7 = self.bn_2d_7(merge7)
 
         up8 = self.up_block_3(conv7)
-        merge8 = conv2 + up8
+        merge8 = torch.cat(([conv2, up8]), 1)
         conv8 = self.bn_2d_8(merge8)
 
         up9 = self.up_block_4(conv8)
-        merge9 = conv1 + up9
+        merge9 = torch.cat(([conv1, up9]), 1)
         conv9 = self.bn_2d_9(merge9)
-        
+
         conv10 = self.conv_10(conv9)
 
         return conv10
+
+if __name__ == "__main__":
+    model = DUnet(in_channels=4)
+    BATCH_SIZE = 1
+    input_batch = torch.Tensor(BATCH_SIZE, 4, 192, 192)
+    output_batch = model(input_batch)
+
+    print(output_batch.size())

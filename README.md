@@ -14,7 +14,7 @@ import torch
 BATCH_SIZE = 8
 input_batch = torch.Tensor(BATCH_SIZE, 4, 192, 192)
 
-model = DUnet()
+model = DUnet(in_channels = 4)
 
 output_batch = model(input_batch) # output_batch size : (BATCH_SIZE, 1, 192, 192)
 ```
